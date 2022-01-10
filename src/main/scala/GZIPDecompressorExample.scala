@@ -1,7 +1,7 @@
 import org.apache.commons.io.IOUtils
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.{Column, SparkSession}
-import org.apache.spark.sql.catalyst.expressions.codegen.{CodegenContext, ExprCode}
+import org.apache.spark.sql.catalyst.expressions.codegen.{CodeGenerator, CodegenContext, ExprCode}
 import org.apache.spark.sql.catalyst.expressions.{Expression, ExpressionDescription, ExpressionInfo, ImplicitCastInputTypes, NullIntolerant, UnaryExpression}
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions.udf
@@ -64,13 +64,20 @@ object GZIPDecompressorExample {
 
     override def doGenCode(ctx: CodegenContext, ev: ExprCode): ExprCode = {
 
-      val c = GZIPDecompressorExample.getClass.getCanonicalName.stripSuffix("$")
-
       nullSafeCodeGen(
-        ctx, ev, child => {
-          s"""${ev.value} = $c.decompress($child);
-       """
-        })
+        ctx,
+        ev,
+        child => {
+          val c = GZIPDecompressorExample.getClass.getCanonicalName
+          val dt = CodeGenerator.boxedType(dataType)
+
+          s"""
+             |$c obj = $c.MODULE$$;
+             |$dt data = ($dt) $child;
+             |${ev.value} = obj.findDecompressor(data).decompress(data);
+             |""".stripMargin
+        }
+      )
     }
   }
 
